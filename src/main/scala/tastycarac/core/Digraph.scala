@@ -16,6 +16,14 @@ case class Digraph[A](nodes: Set[A], arcs: Set[(A, A)]):
       (nodes.map(n => (n, Set.empty[A])).toMap)
       ((acc, a) => acc.updatedWith(a._1)(_.map(_ + a._2)))
 
+  def withNode(nnode: A) = copy(nodes = nodes + nnode)
+  def withArc(narc: (A, A)) = copy(arcs = arcs + narc)
+
+  def withNodes(nnodes: Set[A]) = copy(nodes = nodes ++ nnodes)
+  def withArcs(narcs: Set[(A, A)]) = copy(arcs = arcs ++ narcs)
+
+  def contains(elem: A): Boolean = nodes.contains(elem)
+
   def acyclic: Boolean =
     def rec(curr: A, acc: Set[A]): Boolean =
       acc.contains(curr) || succs(curr).exists(rec(_, acc + curr))
@@ -31,6 +39,7 @@ case class Digraph[A](nodes: Set[A], arcs: Set[(A, A)]):
         val nexts = nopreds.keys
         rec(somepreds.mapValues(_ -- nexts).toMap, acc ++ nexts)
     rec(preds, List.empty)
+
 
 object Digraph:
   def empty[A]: Digraph[A] = Digraph(Set.empty, Set.empty)

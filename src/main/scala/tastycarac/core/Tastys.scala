@@ -13,29 +13,34 @@ import tastyquery.Symbols.*
 
 import datalog.dsl.{Program, Constant, Atom, Relation}
 
+import tasty.Symbols.*
 
-class Tasty(target: List[Path], sets: Set[FactSet | RuleSet])(using Program):
-  val id: Int = Tasty.nextId
-  def patch(name: String): String = s"${id}#${name}" 
+
+class Tasty(target: List[Path], val sets: Set[FactSet | RuleSet])(using Program):
+  val id: String = s"PF${Tasty.nextId}"
+  def patch(name: String): String = s"$id#$name"
   val program: Program = summon[Program]
+
+  val symbolTable: SymbolTable = new SymbolTable()
 
   {
     val classpath = ClasspathLoaders.read(target)
     val context = Context.initialize(classpath ++ Tasty.defaultClasspath)
-    val rootPackage = context.defn.RootPackage
-    
-    val digraph = Digraph.merge(sets.map(Tasty.extractDigraph))
+    val toplevels = classpath.flatMap(context.findSymbolsByClasspathEntry(_))
 
+    val digraph = Digraph.merge(sets.map(Tasty.buildDigraph))
+    
     digraph.toposort match
       case None => throw Exception("Provided sets exhibit circular dependencies")
       case Some(order) =>
         order.foreach{
-          case fs: FactSet => fs.extract(rootPackage)(using context)(using this)
+          case fs: FactSet => fs.extract(toplevels.toSet)(using context)(using this)
           case rs: RuleSet => rs.define(using this)
         }
   }
 
   def get(getter: Tasty ?=> Relation[Constant]): Relation[Constant] = getter(using this)
+
 
 object Tasty:
   private var counter: Int = 0
@@ -48,18 +53,15 @@ object Tasty:
       :: sys.env.get("TASTYCARAC_DEFAULTCLASSPATH").get.split(";").map(Paths.get(_)).toList
   private val defaultClasspath: Classpath = ClasspathLoaders.read(defaultPaths)
 
-  private def extractDigraph(node: FactSet | RuleSet): Digraph[FactSet | RuleSet] =
+  private def buildDigraph(node: FactSet | RuleSet): Digraph[FactSet | RuleSet] =
     def rec(node: FactSet | RuleSet, acc: Set[FactSet | RuleSet]): Digraph[FactSet | RuleSet] =
       if acc.contains(node) then Digraph(Set(node), Set.empty)
       else
         node match
           case fs: FactSet => Digraph(Set(fs), Set.empty)
           case rs: RuleSet =>
-            val subdigraphs = rs.dependencies.map(rec(_, acc + node))
-            Digraph(
-              subdigraphs.map(_.nodes).flatten + node,
-              subdigraphs.map(_.arcs).flatten ++ rs.dependencies.map(_ -> node)
-            )
+            val subdigraph = Digraph.merge(rs.dependencies.map(rec(_, acc + node)))
+            subdigraph.withNode(node).withArcs(rs.dependencies.map(_ -> node))
     rec(node, Set.empty)
 
 
