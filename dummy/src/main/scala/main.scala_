@@ -1,0 +1,122 @@
+package main
+
+class A()
+
+val id = (x: A) => x
+
+object Main:
+
+  def main(): Unit =
+    val x = A()
+    val y = id(x)
+    val z = ((x: A) => x)(x)
+
+
+/*
+class Klass:
+  def pe(): String = ""
+
+val lam = (x: AnyRef) => x
+val x = new Klass
+val y = lam(x)
+
+
+class Klass2 extends Klass:
+  override def pe(): String = ""
+*/
+/*
+// Applyless call
+val out =
+  class A:
+    def x =
+      println(12)
+      0
+  val y = A()
+  y.x
+*/
+/*
+class X:
+  var x = 0
+  def z() =
+    x = 2
+    ()
+*/
+
+/*
+object Main:
+  var x = y
+
+  def main(): Unit = x; ()
+
+  def pete(): 1 = 1
+*/
+
+  /*
+  def z(): Unit =
+    x = 2
+    return ()
+    x = 2
+    ()
+  */
+  
+  
+  //def temp(a: Int => Int, b: Int => Int): Unit = ()
+
+  //temp(x => x, x => x)
+
+  //val x = 0
+
+  /*
+  {
+    ((x: Int) => x);
+    (x: Int) => x
+  }
+
+  val v = 12
+
+  {
+    val x = 12
+  }
+
+  {
+    val x = 13
+  }
+
+  {
+    class Temp:
+      val x = 0
+  }
+
+  def meth(a: Int): Unit =
+    val a: Int = 0
+    {
+      val a: Int = 0
+    }
+    def mm(a: Int): Unit = ()
+    ()
+
+  {
+    def test: Unit = ()
+    {
+      def test: Unit = ()
+    }
+  }
+
+  {
+    class Peter:
+      val x = 0
+      class Peter
+
+      {
+        class Peter
+      }
+      {
+        class Peter
+      }
+  }
+  */
+
+  //{
+  //  class Hello extends (Int => Int):
+  //    def apply(v1: Int): Int = 0
+  //}

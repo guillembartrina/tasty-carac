@@ -12,9 +12,7 @@ import tastycarac.analyses.*
 @main def main() =
   val program = Program(SemiNaiveExecutionEngine(DefaultStorageManager()))
 
-  val path = Paths.get("dummy/target/scala-3.3.0/classes")
-
-  val explorer = program.loadTasty(List(path), Set(tastycarac.analyses.Explorer))
+  //val explorer = program.loadTasty(List(path), Set(tastycarac.analyses.Explorer))
 
   //val dummy = program.loadTasty(List(path), Set(rules.PointsTo))
   //dummy.get{rules.PointsTo.LookUp}.solve().foreach(println(_))
@@ -48,3 +46,44 @@ import tastycarac.analyses.*
 
   //val vpt = ptf.get{rules.PointsTo.VarPointsTo}.solve().toList.sortBy(x => x(0).asInstanceOf[String])
   //vpt.foreach(x => println(x.mkString(", ")))
+
+  simple(program)
+
+
+def simple(program: Program): Unit = {
+
+  val path = Paths.get("dummy/target/scala-3.3.0/classes")
+  val simple = program.loadTasty(List(path), Set(facts.experimental.Defs, rules.experimental.Inv))
+
+  // ---
+  
+  val tmp = simple.get{facts.experimental.Defs.Instr}.solve().toList.asInstanceOf[List[Seq[String]]].sorted
+  tmp.foreach(x => println(x.mkString(", ")))
+
+  println("-----")
+
+  val tmp2 = simple.get{facts.experimental.Defs.Call}.solve().toList.asInstanceOf[List[Seq[String]]].sorted
+  tmp2.foreach(x => println(x.mkString(", ")))
+
+  println("-----")
+
+  // ---
+
+  val inverses = simple.get{rules.experimental.Inv.Inverses}
+
+  inverses("simple.Primitive$.serializeBoolean", "simple.Primitive$.deserializeBoolean") :- ()
+
+  inverses("simple.Primitive$.serializeInt", "simple.Primitive$.deserializeInt") :- ()
+  inverses("simple.Primitive$.serializeLong", "simple.Primitive$.deserializeLong") :- ()
+
+  inverses("simple.Primitive$.serializeFloat", "simple.Primitive$.deserializeFloat") :- ()
+  inverses("simple.Primitive$.serializeDouble", "simple.Primitive$.deserializeDouble") :- ()
+
+  inverses("simple.Primitive$.serializeChar", "simple.Primitive$.deserializeChar") :- ()
+  inverses("simple.Primitive$.serializeString", "simple.Primitive$.deserializeString") :- ()
+
+
+  val tmp3 = simple.get{rules.experimental.Inv.InstrD}.solve().toList.asInstanceOf[List[Seq[String]]].sorted
+  tmp3.foreach(x => println(x.mkString(", ")))
+
+}
