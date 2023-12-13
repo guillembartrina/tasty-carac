@@ -42,7 +42,7 @@ object Heap extends FactSet:
     def safeMeth: DefId = meth.getOrElse(global)
 
   private object HeapContext:
-    def init: HeapContext = HeapContext(None, None, IdGenerator("?/instr"), IdGenerator("?/temp"), IdGenerator("?"))
+    def init: HeapContext = HeapContext(None, None, IdGenerator("?/temp"), IdGenerator("?/instr"), IdGenerator("?"))
 
 
   def extract(toplevels: Set[TermOrTypeSymbol])(using Context)(using Tasty): Unit =
@@ -229,24 +229,24 @@ object Heap extends FactSet:
         breakExpr(other, Some(temp))
         temp
 
-  private def breakCall(call: TermTree, to: Option[ValId])(using ht: HeapContext)(using Context)(using Tasty): Unit =
+  private def breakCall(call: TermTree, to: Option[ValId])(using hc: HeapContext)(using Context)(using Tasty): Unit =
     val (fun, arglists) = unfoldCall(call)
-    val instr = ht.instr.nextId  // Identifies specific call
+    val instr = hc.instr.nextId  // Identifies specific call
 
     fun match
       case s @ Select(Super(_, _), _) =>
-        F.SuperCall(ST.defId(s.symbol.asTerm), instr, ht.safeMeth)
+        F.SuperCall(ST.defId(s.symbol.asTerm), instr, hc.safeMeth)
       case s @ Select(b @ New(tpt), _) =>
-        val name = to.getOrElse(ht.temp.nextId)
+        val name = to.getOrElse(hc.temp.nextId)
         val classId = classSymbol(tpt.toType).map(ST.classId).getOrElse("<ERROR>")
-        val site = s"new[$classId]{${ht.alloc.nextId}}"  // Identifies specific heap elem
+        val site = s"new[$classId]{${hc.alloc.nextId}}"  // Identifies specific heap elem
         F.HeapType(site, classId)
-        F.Alloc(name, site, ht.safeMeth)
-        F.VCall(name, ST.defId(s.symbol.asTerm), instr, ht.safeMeth)
+        F.Alloc(name, site, hc.safeMeth)
+        F.VCall(name, ST.defId(s.symbol.asTerm), instr, hc.safeMeth)
       case s @ Select(base, _) =>  // Handles 'this' case
-        F.VCall(exprAsVal(base), ST.defId(s.symbol.asTerm), instr, ht.safeMeth)
+        F.VCall(exprAsVal(base), ST.defId(s.symbol.asTerm), instr, hc.safeMeth)
       case id: Ident =>
-        F.SCall(ST.defId(id.symbol.asTerm), instr, ht.safeMeth)
+        F.SCall(ST.defId(id.symbol.asTerm), instr, hc.safeMeth)
       case _ => ???  // Missing cases?
 
     fun match
