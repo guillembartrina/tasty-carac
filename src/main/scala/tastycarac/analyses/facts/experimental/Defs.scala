@@ -14,13 +14,18 @@ import tastycarac.core.tasty.Symbols.*
 
 object Defs extends FactSet:
   val facts: Set[String] = Set(
-    "Method", "FormalArg", "FormalRet",
-    "Call", "ActualArg", "ActualRet",
-    "PackCall", "UnpackCall", "InitCall",
-    "Instr", "Var",
-    "Move", "Read",
     "CandidateSerializer", "CandidateDeserializer",
-    "Literal",
+
+    "Method", "FormalArg", "FormalRet",
+
+    "Call", "ActualArg", "ActualRet",
+
+    "Instr", "Var",
+
+    "Move", "Load",
+
+    "EmptyCall", "FromCall", "PushCall", "PopCall", "StrCall",
+
     "CaseClassConstrCall", "CaseClass", "CaseClassField"
   )
 
@@ -41,18 +46,27 @@ object Defs extends FactSet:
   private object DefsContext:
     def init: DefsContext = DefsContext(None, Counter(), IdGenerator("?/temp"))
 
-  
-  private def _stringClass(using ctx: Context): ClassSymbol =
-    ctx.findTopLevelClass("simple._String")
+  private def StringClass(using ctx: Context): ClassSymbol =
+    ctx.defn.StringClass
 
-  private def _stringPlusMethod(using ctx: Context): TermSymbol =
-    _stringClass.getNonOverloadedDecl(termName("+=")).get
+  private def StringManipulatorClass(using ctx: Context): ClassSymbol =
+    ctx.findTopLevelClass("simple.StringManipulator")
 
-  private def _stringMinusMethod(using ctx: Context): TermSymbol =
-    _stringClass.getNonOverloadedDecl(termName("=-")).get
+  private def StringManipulatorPushMethod(using ctx: Context): TermSymbol =
+    StringManipulatorClass.getNonOverloadedDecl(termName("push")).get
 
-  private def _stringEmptyMethod(using ctx: Context): TermSymbol =
-    ctx.findTopLevelClass("simple._String").companionClass.get.getNonOverloadedDecl(termName("empty")).get
+  private def StringManipulatorPopMethod(using ctx: Context): TermSymbol =
+    StringManipulatorClass.getNonOverloadedDecl(termName("pop")).get
+
+  private def StringManipulatorStringMethod(using ctx: Context): TermSymbol =
+    StringManipulatorClass.getNonOverloadedDecl(termName("string")).get
+
+  private def StringManipulatorEmpty(using ctx: Context): TermSymbol =
+    StringManipulatorClass.companionClass.get.getNonOverloadedDecl(termName("empty")).get
+
+  private def StringManipulatorFrom(using ctx: Context): TermSymbol =
+    StringManipulatorClass.companionClass.get.getNonOverloadedDecl(termName("from")).get
+
 
   private def newInstr(using dc: DefsContext)(using Context)(using Tasty): Int =
     val instr = dc.instr.next
@@ -94,7 +108,7 @@ object Defs extends FactSet:
         val pnames = symbol.companionClass.get.getNonOverloadedDecl(termName("apply")).get
           .declaredType.asInstanceOf[MethodType].paramNames.map(_.toString())
 
-        pnames.foreach(F.CaseClassField(ST.classId(symbol), _))
+        pnames.zipWithIndex.foreach((n, i) => F.CaseClassField(ST.classId(symbol), i, n))
 
       // term in statement position
       case t: TermTree if dc.meth.isDefined => breakExpr(t)
@@ -120,9 +134,9 @@ object Defs extends FactSet:
       if methTpe.paramNames.size == 1 then
         val parTpe = methTpe.paramTypes(0)
         val resTpe = methTpe.resultType.requireType
-        if resTpe.isSameType(_stringClass.staticRef) then
+        if resTpe.isSameType(StringClass.staticRef) then
           classSymbol(parTpe).foreach(cs => F.CandidateSerializer(defId, ST.classId(cs)))
-        if parTpe.isSameType(_stringClass.staticRef) then
+        if parTpe.isSameType(StringClass.staticRef) then
           classSymbol(resTpe).foreach(cs => F.CandidateDeserializer(defId, ST.classId(cs)))
 
   // expr tree, whose result must be stored in 'to' (if not None)
@@ -144,7 +158,7 @@ object Defs extends FactSet:
         else
           val ret = breakExpr(base)
           val temp = to.getOrElse(newTemp)
-          F.Read(dc.safeMeth, newInstr, temp, ret, name.toString())
+          F.Load(dc.safeMeth, newInstr, temp, ret, name.toString())
           temp
       // Method call
       case a: Apply => breakCall(a, to)
@@ -218,18 +232,18 @@ object Defs extends FactSet:
         temp
       case s @ Select(base, _) =>
         val temp = to.getOrElse(newTemp)
-        if s.symbol == _stringEmptyMethod then 
-          F.InitCall(dc.safeMeth, instr, temp)
+        if s.symbol == StringManipulatorEmpty then 
+          F.EmptyCall(dc.safeMeth, instr, temp)
+        if s.symbol == StringManipulatorFrom then 
+          F.FromCall(dc.safeMeth, instr, temp, valIds(0))
         else
           val ret = breakExpr(base)
-          valIds.zipWithIndex.foreach((valId, i) =>
-            F.ActualArg(dc.safeMeth, instr, i, valId)
-          )
-          if s.symbol.asTerm == _stringPlusMethod then
-            F.PackCall(dc.safeMeth, instr, ret)
-          if s.symbol.asTerm == _stringMinusMethod then
-            F.UnpackCall(dc.safeMeth, instr, ret)
-            F.ActualRet(dc.safeMeth, instr, temp)
+          if s.symbol.asTerm == StringManipulatorPushMethod then
+            F.PushCall(dc.safeMeth, instr, ret, temp, valIds(0))
+          if s.symbol.asTerm == StringManipulatorPopMethod then
+            F.PopCall(dc.safeMeth, instr, ret, temp)
+          if s.symbol.asTerm == StringManipulatorStringMethod then
+            F.StrCall(dc.safeMeth, instr, ret, temp)
         temp
       case id: Ident =>
         val temp = to.getOrElse(newTemp)
