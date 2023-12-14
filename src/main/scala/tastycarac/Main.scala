@@ -107,7 +107,7 @@ def simple(program: Program): Unit = {
   println("-----")
   */
 
-  val tmp3 = simple.get{rules.experimental.Inv.Inverses}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
+  val tmp3 = simple.get{rules.experimental.Inv.Eq}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
   tmp3.foreach(x => println(x.mkString(", ")))
   println("-----")
 

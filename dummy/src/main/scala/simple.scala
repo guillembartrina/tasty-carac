@@ -70,7 +70,7 @@ case class CaseClass(i: Int, d: Double, s: String)
 def serializer(cc: CaseClass): String =
   val sm = StringManipulator.empty
   val d = cc.d
-  sm.push(serializeInt(cc.i))
+  sm.push(trivialSerializer2(cc.i))
   sm.push(serializeDouble(d))
   sm.push(serializeString(cc.s))
   sm.string()
@@ -79,13 +79,32 @@ def deserializer(str: String): CaseClass =
   val sm = StringManipulator.from(str)
   val s = deserializeString(sm.pop())
   val d = deserializeDouble(sm.pop())
-  val i = deserializeInt(sm.pop())
+  val i = trivialDeserializer2(sm.pop())
   new CaseClass(i, d, s)
+
+
+case class CaseClassComp(cc1: CaseClass, cc2: CaseClass)
+
+def serializerComp(ccc: CaseClassComp): String =
+  val sm = StringManipulator.empty
+  val d = ccc.cc1
+  sm.push(serializer(d))
+  sm.push(serializer(ccc.cc2))
+  sm.string()
+
+def deserializerComp(str: String): CaseClassComp =
+  val sm = StringManipulator.from(str)
+  val cc2 = deserializer(sm.pop())
+  val cc1 = deserializer(sm.pop())
+  new CaseClassComp(cc1, cc2)
 
 
 def main(): Unit =
   //val i = 0
   val i = new CaseClass(0, 0.0, "str")
-  val m = serializer(i)
-  val o = deserializer(m)
+  val j = new CaseClassComp(i, i)
+  val m = serializerComp(j)
+  val o = deserializerComp(m)
+  println(j)
+  println(o)
   
