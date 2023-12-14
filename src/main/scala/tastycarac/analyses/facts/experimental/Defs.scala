@@ -8,7 +8,7 @@ import tastyquery.Types.*
 
 import tastycarac.core.{Tasty, FactSet}
 
-import tastycarac.core.tasty.IdGenerator
+import tastycarac.core.tasty.{Counter, IdGenerator}
 import tastycarac.core.tasty.Symbols.*
 
 
@@ -16,29 +16,30 @@ object Defs extends FactSet:
   val facts: Set[String] = Set(
     "Method", "FormalArg", "FormalRet",
     "Call", "ActualArg", "ActualRet",
-    "PlusCall", "MinusCall", "InitCall", "Constr",
-    "Instr",
+    "PackCall", "UnpackCall", "InitCall",
+    "Instr", "Var",
     "Move", "Read",
     "CandidateSerializer", "CandidateDeserializer",
-    "Literal"
+    "Literal",
+    "CaseClassConstrCall", "CaseClass", "CaseClassField"
   )
 
   private case class DefsContext(
     meth: Option[DefId],
-    instr: IdGenerator,
+    instr: Counter,
     temp: IdGenerator
   ):
     def enterMethod(defId: DefId): DefsContext =
       copy(
         meth = Some(defId),
-        instr = IdGenerator(defId + "/instr"),
+        instr = Counter(),
         temp = IdGenerator(defId + "/temp")
       )
 
     def safeMeth: DefId = meth.getOrElse(global)
 
   private object DefsContext:
-    def init: DefsContext = DefsContext(None, IdGenerator("?/instr"), IdGenerator("?/temp"))
+    def init: DefsContext = DefsContext(None, Counter(), IdGenerator("?/temp"))
 
   
   private def _stringClass(using ctx: Context): ClassSymbol =
@@ -53,13 +54,15 @@ object Defs extends FactSet:
   private def _stringEmptyMethod(using ctx: Context): TermSymbol =
     ctx.findTopLevelClass("simple._String").companionClass.get.getNonOverloadedDecl(termName("empty")).get
 
-  private def newInstr(using dc: DefsContext)(using Context)(using Tasty): String =
-    val instr = dc.instr.nextId
+  private def newInstr(using dc: DefsContext)(using Context)(using Tasty): Int =
+    val instr = dc.instr.next
     F.Instr(dc.safeMeth, instr)
     instr
 
-  private def newTemp(using dc: DefsContext): String = dc.temp.nextId
-
+  private def newTemp(using dc: DefsContext)(using Context)(using Tasty): String =
+    val temp = dc.temp.nextId
+    F.Var(dc.safeMeth, temp)
+    temp
 
   def extract(toplevels: Set[TermOrTypeSymbol])(using Context)(using Tasty): Unit =
     toplevels.flatMap(_.tree).foreach(tl =>
@@ -71,6 +74,7 @@ object Defs extends FactSet:
     tree match
       // non-class value definition (always has rhs)
       case ValDef(_, _, Some(rhs), symbol) if dc.meth.isDefined =>
+        F.Var(dc.safeMeth, ST.valId(symbol))
         breakExpr(rhs, Some(ST.valId(symbol)))
       // non-class method definition
       case dd: DefDef if dc.meth.isDefined => breakDefDef(dd)
@@ -82,6 +86,16 @@ object Defs extends FactSet:
           // other
           case _ => ()
         }
+      
+      case cc: ClassDef if cc.symbol.isCaseClass =>
+        val symbol = cc.symbol
+        F.CaseClass(ST.classId(symbol))
+
+        val pnames = symbol.companionClass.get.getNonOverloadedDecl(termName("apply")).get
+          .declaredType.asInstanceOf[MethodType].paramNames.map(_.toString())
+
+        pnames.foreach(F.CaseClassField(ST.classId(symbol), _))
+
       // term in statement position
       case t: TermTree if dc.meth.isDefined => breakExpr(t)
       // other? -> TypeParams
@@ -121,7 +135,7 @@ object Defs extends FactSet:
         else to match
           case None => ST.valId(symbol)
           case Some(value) =>
-            F.Move(newInstr, value, ST.valId(symbol))
+            F.Move(dc.safeMeth, newInstr, value, ST.valId(symbol))
             value
       // Select, usually field selection but also call of parameterless method
       case s @ Select(base, name) =>
@@ -129,8 +143,8 @@ object Defs extends FactSet:
         if symbol.isMethod then breakCall(s, to)
         else
           val ret = breakExpr(base)
-          val temp = to.getOrElse(dc.temp.nextId)
-          F.Read(newInstr, temp, ret, name.toString())
+          val temp = to.getOrElse(newTemp)
+          F.Read(dc.safeMeth, newInstr, temp, ret, name.toString())
           temp
       // Method call
       case a: Apply => breakCall(a, to)
@@ -168,15 +182,9 @@ object Defs extends FactSet:
       case While(cond, body) => ???
       // Literal, leaf
       case Literal(ctant) =>
-        if ctant.tag == 10 then
-          val temp = to.getOrElse(dc.temp.nextId)
-          F.Literal(newInstr, temp)
-          temp
-        else if ctant.tag == 1 then
-          val temp = to.getOrElse(dc.temp.nextId)
-          F.Literal(newInstr, temp)
-          temp
-        else ???
+        val temp = to.getOrElse(newTemp)
+        F.Literal(dc.safeMeth, newInstr, temp)
+        temp
       // This, can it occur?
       case _: This => ??? //to.foreach(F.Move(_, hc.methThis.get))  // ??? [REMOVE?]
       // Implement?
@@ -195,40 +203,41 @@ object Defs extends FactSet:
 
     fun match
       case s @ Select(b @ New(tpt), _) =>
-        val temp = to.getOrElse(dc.temp.nextId)
+        val temp = to.getOrElse(newTemp)
         val cs = classSymbol(tpt.toType).get
         if cs.isCaseClass then
           val pnames = cs.companionClass.get.getNonOverloadedDecl(termName("apply")).get
             .declaredType.asInstanceOf[MethodType].paramNames.map(_.toString())
 
           valIds.zip(pnames).foreach((valId, n) =>
-            F.ActualArg(instr, n, valId)
+            F.ActualArg(dc.safeMeth, instr, n, valId)
           )
 
-          F.Constr(instr, ST.classId(cs))
-          F.ActualRet(instr, temp)
+          F.CaseClassConstrCall(dc.safeMeth, instr, ST.classId(cs))
+          F.ActualRet(dc.safeMeth, instr, temp)
         temp
       case s @ Select(base, _) =>
-        val temp = to.getOrElse(dc.temp.nextId)
+        val temp = to.getOrElse(newTemp)
         if s.symbol == _stringEmptyMethod then 
-          F.InitCall(instr, temp)
-        else  
+          F.InitCall(dc.safeMeth, instr, temp)
+        else
+          val ret = breakExpr(base)
           valIds.zipWithIndex.foreach((valId, i) =>
-            F.ActualArg(instr, i, valId)
+            F.ActualArg(dc.safeMeth, instr, i, valId)
           )
           if s.symbol.asTerm == _stringPlusMethod then
-            F.PlusCall(instr)
+            F.PackCall(dc.safeMeth, instr, ret)
           if s.symbol.asTerm == _stringMinusMethod then
-            F.MinusCall(instr)
-            F.ActualRet(instr, temp)
+            F.UnpackCall(dc.safeMeth, instr, ret)
+            F.ActualRet(dc.safeMeth, instr, temp)
         temp
       case id: Ident =>
-        val temp = to.getOrElse(dc.temp.nextId)
+        val temp = to.getOrElse(newTemp)
         valIds.zipWithIndex.foreach((valId, i) =>
-          F.ActualArg(instr, i, valId)
+          F.ActualArg(dc.safeMeth, instr, i, valId)
         )
-        F.Call(instr, ST.defId(id.symbol.asTerm))
-        F.ActualRet(instr, temp)
+        F.Call(dc.safeMeth, instr, ST.defId(id.symbol.asTerm))
+        F.ActualRet(dc.safeMeth, instr, temp)
         temp
       case _ => ???  // Missing cases?
 

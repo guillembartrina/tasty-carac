@@ -56,6 +56,8 @@ import Primitive.*
 def trivialSerializer(i: Int): _String = serializeInt(i)
 def trivialDeserializer(sb: _String): Int = deserializeInt(sb)
 
+def trivialSerializer2(i: Int): _String = trivialSerializer(i)
+def trivialDeserializer2(sb: _String): Int = trivialDeserializer(sb)
 
 case class CaseClass(i: Int, d: Double, s: String)
 
@@ -77,6 +79,7 @@ def deserializer(sb: _String): CaseClass =
 
 
 def main(): Unit =
-  val x = "XXX"
-  val y = x
+  val i = new CaseClass(0, 0.0, "str")
+  val m = serializer(i)
+  val o = deserializer(m)
   

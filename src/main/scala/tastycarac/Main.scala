@@ -9,6 +9,18 @@ import datalog.storage.*
 import tastycarac.core.{Tasty, loadTasty}
 import tastycarac.analyses.*
 
+
+given Ordering[Seq[Constant]] with
+  def compare(x: Seq[Constant], y: Seq[Constant]): Int =
+    (x, y) match
+      case ((a: Int) +: as, (b: Int) +: bs) => a.compareTo(b) match
+        case 0 => compare(as, bs)
+        case o => o
+      case ((a: String) +: as, (b: String) +: bs) => a.compareTo(b) match
+        case 0 => compare(as, bs)
+        case o => o
+      case _ => -1
+
 @main def main() =
   val program = Program(SemiNaiveExecutionEngine(DefaultStorageManager()))
 
@@ -57,14 +69,12 @@ def simple(program: Program): Unit = {
 
   // ---
   
-  val tmp = simple.get{facts.experimental.Defs.Instr}.solve().toList.asInstanceOf[List[Seq[String]]].sorted
-  tmp.foreach(x => println(x.mkString(", ")))
+  //val tmp = simple.get{facts.experimental.Defs.Instr}.solve().toList.asInstanceOf[List[Seq[String]]].sorted
+  //tmp.foreach(x => println(x.mkString(", ")))
+  //println("-----")
 
-  println("-----")
-
-  val tmp2 = simple.get{facts.experimental.Defs.Call}.solve().toList.asInstanceOf[List[Seq[String]]].sorted
+  val tmp2 = simple.get{facts.experimental.Defs.Var}.solve().toList.asInstanceOf[List[Seq[String]]].sorted
   tmp2.foreach(x => println(x.mkString(", ")))
-
   println("-----")
 
   // ---
@@ -83,7 +93,11 @@ def simple(program: Program): Unit = {
   inverses("simple.Primitive$.serializeString", "simple.Primitive$.deserializeString") :- ()
 
 
-  val tmp3 = simple.get{rules.experimental.Inv.InstrD}.solve().toList.asInstanceOf[List[Seq[String]]].sorted
+  val streq = simple.get{rules.experimental.Inv.StrEq}
+
+  streq("simple.simple$package$.main.m", "simple.simple$package$.main.m") :- ()
+
+  val tmp3 = simple.get{rules.experimental.Inv.Unpack}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
   tmp3.foreach(x => println(x.mkString(", ")))
 
 }
