@@ -121,8 +121,8 @@ object Inv extends RuleSet:
     // Instructions
 
     R.InstrPrint(m, i, "Call") :- F.Call(m, i, __)
-    R.InstrPrint(m, i, "ActualArg") :- F.ActualArg(m, i, __, __)
-    R.InstrPrint(m, i, "ActualRet") :- F.ActualRet(m, i, __)
+    //R.InstrPrint(m, i, "ActualArg") :- F.ActualArg(m, i, __, __)
+    //R.InstrPrint(m, i, "ActualRet") :- F.ActualRet(m, i, __)
     R.InstrPrint(m, i, "Move") :- F.Move(m, i, __, __)
     R.InstrPrint(m, i, "Load") :- F.Load(m, i, __, __, __)
     R.InstrPrint(m, i, "EmptyCall") :- F.EmptyCall(m, i, __)

@@ -12,7 +12,8 @@ package simple
 
 // ---
 
-class Ignore extends scala.annotation.StaticAnnotation
+class Skip extends scala.annotation.StaticAnnotation
+class Shallow extends scala.annotation.StaticAnnotation
 
 class StringManipulator:
   val sep = ";"
@@ -26,35 +27,35 @@ class StringManipulator:
     res
   def string(): String = inner
 
-object StringManipulator:
-  @Ignore def empty: StringManipulator = new StringManipulator()
-  @Ignore def from(s: String): StringManipulator =
+@Skip object StringManipulator:
+  def empty: StringManipulator = new StringManipulator()
+  def from(s: String): StringManipulator =
     val sm = new StringManipulator()
     sm.inner = s
     sm
 
 
 object Primitive:
-  @Ignore def serializeBoolean(b: Boolean): String = String.valueOf(b)
-  @Ignore def deserializeBoolean(sb: String): Boolean = sb.toBoolean
+  @Shallow def serializeBoolean(b: Boolean): String = String.valueOf(b)
+  @Shallow def deserializeBoolean(sb: String): Boolean = sb.toBoolean
 
-  @Ignore def serializeInt(i: Int): String = String.valueOf(i)
-  @Ignore def deserializeInt(sb: String): Int = sb.toInt
+  @Shallow def serializeInt(i: Int): String = String.valueOf(i)
+  @Shallow def deserializeInt(sb: String): Int = sb.toInt
 
-  @Ignore def serializeLong(l: Long): String = String.valueOf(l)
-  @Ignore def deserializeLong(sb: String): Long = sb.toLong
+  @Shallow def serializeLong(l: Long): String = String.valueOf(l)
+  @Shallow def deserializeLong(sb: String): Long = sb.toLong
 
-  @Ignore def serializeFloat(f: Float): String = String.valueOf(f)
-  @Ignore def deserializeFloat(sb: String): Float = sb.toFloat
+  @Shallow def serializeFloat(f: Float): String = String.valueOf(f)
+  @Shallow def deserializeFloat(sb: String): Float = sb.toFloat
   
-  @Ignore def serializeDouble(d: Double): String = String.valueOf(d)
-  @Ignore def deserializeDouble(sb: String): Double = sb.toDouble
+  @Shallow def serializeDouble(d: Double): String = String.valueOf(d)
+  @Shallow def deserializeDouble(sb: String): Double = sb.toDouble
 
-  @Ignore def serializeChar(c: Char): String = String.valueOf(c)
-  @Ignore def deserializeChar(sb: String): Char = sb.head
+  @Shallow def serializeChar(c: Char): String = String.valueOf(c)
+  @Shallow def deserializeChar(sb: String): Char = sb.head
 
-  @Ignore def serializeString(s: String): String = String(s)
-  @Ignore def deserializeString(sb: String): String = sb
+  @Shallow def serializeString(s: String): String = String(s)
+  @Shallow def deserializeString(sb: String): String = sb
 
 import Primitive.*
 
@@ -67,7 +68,7 @@ def trivialDeserializer2(sb: String): Int = trivialDeserializer(sb)
 
 case class CaseClass(i: Int, d: Double, s: String)
 
-def serializer(cc: CaseClass): String =
+def ccSerializer(cc: CaseClass): String =
   val sm = StringManipulator.empty
   val d = cc.d
   sm.push(trivialSerializer2(cc.i))
@@ -75,7 +76,7 @@ def serializer(cc: CaseClass): String =
   sm.push(serializeString(cc.s))
   sm.string()
 
-def deserializer(str: String): CaseClass =
+def ccDeserializer(str: String): CaseClass =
   val sm = StringManipulator.from(str)
   val s = deserializeString(sm.pop())
   val d = deserializeDouble(sm.pop())
@@ -83,28 +84,46 @@ def deserializer(str: String): CaseClass =
   new CaseClass(i, d, s)
 
 
-case class CaseClassComp(cc1: CaseClass, cc2: CaseClass)
+case class CompCaseClass(cc1: CaseClass, cc2: CaseClass)
 
-def serializerComp(ccc: CaseClassComp): String =
+def cccSerializer(ccc: CompCaseClass): String =
   val sm = StringManipulator.empty
   val d = ccc.cc1
-  sm.push(serializer(d))
-  sm.push(serializer(ccc.cc2))
+  sm.push(ccSerializer(d))
+  sm.push(ccSerializer(ccc.cc2))
   sm.string()
 
-def deserializerComp(str: String): CaseClassComp =
+def cccDeserializer(str: String): CompCaseClass =
   val sm = StringManipulator.from(str)
-  val cc2 = deserializer(sm.pop())
-  val cc1 = deserializer(sm.pop())
-  new CaseClassComp(cc1, cc2)
+  val cc2 = ccDeserializer(sm.pop())
+  val cc1 = ccDeserializer(sm.pop())
+  new CompCaseClass(cc1, cc2)
 
+/*
+def eSerializer(e: Either[Int, String]): String =
+  val sm = StringManipulator.empty
+  e match
+    case Left(int) =>
+      sm.push(serializeInt(int))
+      sm.push("I")
+    case Right(string) => sm.push(serializeString(string))
+      sm.push("S")
+  sm.string()
+  
+def eDeserializer(str: String): Either[Int, String] =
+  val sm = StringManipulator.from(str)
+  val x = sm.pop()
+  x match
+    case "I" => Left(deserializeInt(sm.pop()))
+    case "S" => Right(deserializeString(sm.pop()))
+*/
 
 def main(): Unit =
   //val i = 0
   val i = new CaseClass(0, 0.0, "str")
-  val j = new CaseClassComp(i, i)
-  val m = serializerComp(j)
-  val o = deserializerComp(m)
+  val j = new CompCaseClass(i, i)
+  val m = cccSerializer(j)
+  val o = cccDeserializer(m)
   println(j)
   println(o)
   
