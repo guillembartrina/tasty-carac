@@ -69,7 +69,7 @@ def simple(program: Program): Unit = {
 
   // ---
   
-  val tmp = simple.get{facts.experimental.Defs.CaseClassField}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
+  val tmp = simple.get{facts.experimental.Defs.PhiCall}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
   tmp.foreach(x => println(x.mkString(", ")))
   println("-----")
 
@@ -100,13 +100,13 @@ def simple(program: Program): Unit = {
   val tmp21 = simple.get{rules.experimental.Inv.NextPushCall}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
   tmp21.foreach(x => println(x.mkString(", ")))
   println("-----")
-
-  val tmp22 = simple.get{rules.experimental.Inv.NextPopCall}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
-  tmp22.foreach(x => println(x.mkString(", ")))
-  println("-----")
   */
 
-  // InstrPrint
+  val tmp22 = simple.get{rules.experimental.Inv.PhiArgs}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
+  tmp22.foreach(x => println(x.mkString(", ")))
+  println("-----")
+
+  // InstrPrint, Inverses
   val tmp3 = simple.get{rules.experimental.Inv.Inverses}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
   tmp3.foreach(x => println(x.mkString(", ")))
   println("-----")
