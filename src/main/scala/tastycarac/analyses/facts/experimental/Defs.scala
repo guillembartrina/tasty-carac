@@ -148,28 +148,37 @@ object Defs extends FactSet:
     val symbol = defdef.symbol
     val defId = ST.defId(symbol)
     F.Method(defId)
-    
-    if !shallow(symbol) then
-      defdef.rhs.foreach(body =>
-        val (_, ret) = breakExpr(body, 0)(using DefsContext.enter(defId))
-        F.BB(defId, 0)
-        F.FormalRet(defId, ret)
-      )
-      
-      defdef.paramLists match
-        case Left(args) :: Nil =>  // only a single parameter list for now
-          args.zipWithIndex.foreach((arg, i) =>
-            F.FormalArg(defId, i, ST.valId(arg.symbol))
-          )
 
-          val methTpe = symbol.declaredType.asInstanceOf[MethodType]
-          if methTpe.paramNames.size == 1 then
-            val parTpe = methTpe.paramTypes(0)
-            val resTpe = methTpe.resultType.requireType
-            if resTpe.isSameType(DefsDefs.StringClass.staticRef) then
-              classSymbol(parTpe).foreach(cs => F.CandidateSerializer(defId, ST.classId(cs)))
-            if parTpe.isSameType(DefsDefs.StringClass.staticRef) then
-              classSymbol(resTpe).foreach(cs => F.CandidateDeserializer(defId, ST.classId(cs)))
+    if !shallow(symbol) then      
+      defdef.paramLists match
+        case Left(List(arg)) :: Nil =>
+          defdef.rhs.foreach(body =>
+            val (_, ret) = breakExpr(body, 0)(using DefsContext.enter(defId))
+            F.BB(defId, 0)
+            F.FormalRet(defId, ret)
+          )
+          F.FormalArg(defId, 0, ST.valId(arg.symbol))
+          
+          val (parTpe, resTpe) = (arg.tpt.toType, defdef.resultTpt.toType)
+          if resTpe.isSameType(DefsDefs.StringClass.staticRef) then
+            classSymbol(parTpe).foreach(cs => F.CandidateSerializer(defId, ST.classId(cs)))
+          if parTpe.isSameType(DefsDefs.StringClass.staticRef) then
+            classSymbol(resTpe).foreach(cs => F.CandidateDeserializer(defId, ST.classId(cs)))
+
+        case Right(_) :: Left(List(arg)) :: Left(usings) :: Nil if usings.forall(_.symbol.isGivenOrUsing) =>
+          defdef.rhs.foreach(body =>
+            val (_, ret) = breakExpr(body, 0)(using DefsContext.enter(defId))
+            F.BB(defId, 0)
+            F.FormalRet(defId, ret)
+          )
+          F.FormalArg(defId, 0, ST.valId(arg.symbol))
+          
+         
+          val (parTpe, resTpe) = (arg.tpt.toType, defdef.resultTpt.toType)
+          if resTpe.isSameType(DefsDefs.StringClass.staticRef) then
+            classSymbol(parTpe).foreach(cs => F.CandidateSerializer(defId, ST.classId(cs)))
+          if parTpe.isSameType(DefsDefs.StringClass.staticRef) then
+            classSymbol(resTpe).foreach(cs => F.CandidateDeserializer(defId, ST.classId(cs)))
 
         case _ => ()
 
@@ -212,7 +221,7 @@ object Defs extends FactSet:
           (nbb, temp)
       // Method call
       case a: Apply => breakCall(a, bb, to)
-      case ta: TypeApply => ???
+      case ta: TypeApply => breakCall(ta, bb, to)
       // Assign, ignore 'to' because no heap
       case Assign(lhs, rhs) =>
         val (nbb, _) = lhs match
@@ -254,12 +263,17 @@ object Defs extends FactSet:
       case InlineMatch(selector, cases) => ???
       case Inlined(expr, caller, bindings) => ???
       // Lambda
-      case Lambda(meth, tpt) => ???
+      case Lambda(meth, tpt) =>
+        val temp = to.getOrElse(newTemp)
+        (bb, temp)
       case NamedArg(name, arg) => ???
       // Explicit return 
       case Return(expr, from) => ???
       // SeqLiteral, simply break all elements
-      case SeqLiteral(elems, _) => ???
+      case SeqLiteral(elems, _) =>
+        val temp = to.getOrElse(newTemp)
+        F.Literal(dc.getMeth, bb, newInstr(bb), temp)  // Add info about literal?
+        (bb, temp)
       // Throw, ignore 'to' because no heap
       case Throw(expr) => ???
       // Try, consider all paths store to 'to'
@@ -282,9 +296,16 @@ object Defs extends FactSet:
 
 
   private def breakCall(call: TermTree, bb: Int, to: Option[ValId])(using dc: DefsContext)(using Context)(using Tasty): (Int, ValId) =
-    val (fun, args) = call match
-      case Apply(fun, args) => (fun, args)
+          
+    //Get base and innermost non-type arguments
+    def unfoldCall(call: TermTree): (TermTree, List[TermTree]) = call match
+      case Apply(fun, args) =>
+        val next = unfoldCall(fun)
+        if next._2.isEmpty then (next._1, args) else next
+      case TypeApply(fun, args) => unfoldCall(fun)
       case _ => (call, Nil)
+    
+    val (fun, args) = unfoldCall(call)
 
     fun match
       case s @ Select(b @ New(tpt), _) =>
@@ -293,17 +314,12 @@ object Defs extends FactSet:
           (tbb, acc._2 :+ ret)
         )
         val instr = newInstr(nbb)
-
         val temp = to.getOrElse(newTemp)
         val cs = classSymbol(tpt.toType).get
         if cs.isCaseClass then
-          //val pnames = cs.companionClass.get.getNonOverloadedDecl(termName("apply")).get
-          //.declaredType.asInstanceOf[MethodType].paramNames.map(_.toString())
-
           valIds.zipWithIndex.foreach((valId, i) =>
             F.ActualArg(dc.getMeth, nbb, instr, i, valId)
           )
-
           F.CaseClassConstrCall(dc.getMeth, nbb, instr, ST.classId(cs))
           F.ActualRet(dc.getMeth, nbb, instr, temp)
         (nbb, temp)
@@ -313,7 +329,7 @@ object Defs extends FactSet:
           val instr = newInstr(bb)
           F.EmptyCall(dc.getMeth, bb, instr, temp)
           (bb, temp)
-        if s.symbol == DefsDefs.StringManipulatorFrom then
+        else if s.symbol == DefsDefs.StringManipulatorFrom then
           val (nbb, valIds) = args.foldLeft((bb, List.empty[ValId]))((acc, arg) =>
             val (tbb, ret) = breakExpr(arg, acc._1)
             (tbb, acc._2 :+ ret)
@@ -342,7 +358,6 @@ object Defs extends FactSet:
           (tbb, acc._2 :+ ret)
         )
         val instr = newInstr(nbb)
-
         val temp = to.getOrElse(newTemp)
         valIds.zipWithIndex.foreach((valId, i) =>
           F.ActualArg(dc.getMeth, nbb, instr, i, valId)
@@ -350,9 +365,7 @@ object Defs extends FactSet:
         F.Call(dc.getMeth, nbb, instr, ST.defId(id.symbol.asTerm))
         F.ActualRet(dc.getMeth, nbb, instr, temp)
         (nbb, temp)
-      case _ =>
-        println(fun)
-        ???  // Missing cases?
+      case _ => ???  // Missing cases?
 
 
   // Logic copied from tastyquery

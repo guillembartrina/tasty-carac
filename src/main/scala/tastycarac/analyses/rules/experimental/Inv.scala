@@ -58,6 +58,7 @@ object Inv extends RuleSet:
     R.Eq(vara, varb) :- F.Move(__, __, __, vara, varb)
     R.Eq(vara, varb) :- (R.Eq(vara, varc), R.Eq(varc, varb))
 
+    /*
     R.Eq(vara, varb) :- (
       F.CandidateSerializer(ser, __),
       F.Call(metha, bba, insa, ser), F.ActualRet(metha, bba, insa, varb),
@@ -68,6 +69,12 @@ object Inv extends RuleSet:
       F.CandidateDeserializer(deser, __),
       F.Call(metha, bba, insa, deser), F.ActualArg(metha, bba, insa, 0, vara),
       F.FormalArg(deser, 0, varb) // + Eq
+    )
+    */
+
+    R.Eq(vara, varb) :- (
+      F.CandidateSerializer(ser, cc), F.CandidateDeserializer(deser, cc),
+      F.FormalRet(ser, vara), F.FormalArg(deser, 0, varb)
     )
 
     R.Eq(vara, varb) :- (
@@ -115,6 +122,17 @@ object Inv extends RuleSet:
       R.FirstPopCall(methb, bbb, insb, varb),
       //insa |!=| -1
     )
+
+    // ---
+
+    // Recursive call, assume inverses
+    R.Eq(vara, varb) :- (
+      F.Call(metha, bba, insa, metha), F.ActualArg(metha, bba, insa, 0, vara), F.ActualRet(metha, bba, insa, varc),
+      R.Eq(varc, vard),
+      F.Call(methb, bbb, insb, methb), F.ActualArg(methb, bbb, insb, 0, vard), F.ActualRet(methb, bbb, insb, varb)
+    )
+
+    // TODO: Handle mutually recursive serialization calls
 
     // ---
     

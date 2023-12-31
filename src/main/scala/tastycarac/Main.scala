@@ -69,7 +69,7 @@ def simple(program: Program): Unit = {
 
   // ---
   
-  val tmp = simple.get{facts.experimental.Defs.SuccBB}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
+  val tmp = simple.get{facts.experimental.Defs.MatchCase}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
   tmp.foreach(x => println(x.mkString(", ")))
   println("-----")
 
@@ -92,11 +92,13 @@ def simple(program: Program): Unit = {
   inverses("simple.Primitive$.serializeChar", "simple.Primitive$.deserializeChar") :- ()
   inverses("simple.Primitive$.serializeString", "simple.Primitive$.deserializeString") :- ()
 
+  inverses("simple.Primitive$.serializeList", "simple.Primitive$.deserializeList") :- ()
+
 
   //val streq = simple.get{rules.experimental.Inv.Eq}
   //streq("simple.simple$package$.main.m", "simple.simple$package$.main.m") :- ()
 
-  val tmp21 = simple.get{rules.experimental.Inv.PhiEq}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
+  val tmp21 = simple.get{rules.experimental.Inv.Eq}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
   tmp21.foreach(x => println(x.mkString(", ")))
   println("-----")
 
