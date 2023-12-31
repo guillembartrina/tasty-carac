@@ -16,8 +16,8 @@ object Inv extends RuleSet:
     "InstrPrint",
 
 
-    "NoSerSnap", "LaterSerSnap", "NextSerSnap", "LastSerSnap",
-    "NoDeserSnap", "LaterDeserSnap", "NextDeserSnap", "FirstDeserSnap",
+    "LaterPushCall", "NextPushCall", "LastPushCall",
+    "LaterPopCall", "NextPopCall", "FirstPopCall",
 
     "PhiArgs", "MatchCases"
   )
@@ -34,19 +34,19 @@ object Inv extends RuleSet:
 
     // ---
 
-    //R.NoSerSnap(metha, bba, vara) :- (F.StrCall(metha, __, __, vara, __), F.BB(metha, bba), F.Var(metha, vara), !F.PushCall(metha, bba, __, vara, __, __), !F.StrCall(metha, bba, __, vara, __))
-    R.LaterSerSnap(metha, bba, insa, insb, vara) :- (F.PushCall(metha, bba, insa, vara, __, __), F.PushCall(metha, bba, insb, vara, __, __), insa |<| insb)
-    R.LaterSerSnap(metha, bba, insa, insb, vara) :- (F.PushCall(metha, bba, insa, vara, __, __), F.StrCall(metha, bba, insb, vara, __), insa |<| insb)
-    R.NextSerSnap(metha, bba, insa, insb, vara) :- (F.PushCall(metha, bba, insa, vara, __, __), groupBy(R.LaterSerSnap(metha, bba, insa, insc, vara), Seq(metha, bba, insa, vara), AggOp.MIN(insc) -> insb))
-    R.LastSerSnap(metha, bba, insa, vara) :- groupBy(F.PushCall(metha, bba, insb, vara, __, __), Seq(metha, bba, vara), AggOp.MAX(insb) -> insa)
-    R.LastSerSnap(metha, bba, -1, vara) :- (F.StrCall(metha, __, __, vara, __), F.BB(metha, bba), F.Var(metha, vara), !F.PushCall(metha, bba, __, vara, __, __))
+    R.FirstPushCall(metha, bba, insa, vara) :- groupBy(F.PushCall(metha, bba, insb, vara, __, __), Seq(metha, bba, vara), AggOp.MIN(insb) -> insa)
+    R.LaterPushCall(metha, bba, insa, insb, vara) :- (F.PushCall(metha, bba, insa, vara, __, __), F.PushCall(metha, bba, insb, vara, __, __), insa |<| insb)
+    R.NextPushCall(metha, bba, insa, insb, vara) :- (F.PushCall(metha, bba, insa, vara, __, __), groupBy(R.LaterPushCall(metha, bba, insa, insc, vara), Seq(metha, bba, insa, vara), AggOp.MIN(insc) -> insb))
+    R.NextPushCall(metha, bba, -1, insa, vara) :- (R.FirstPushCall(metha, bba, insa, vara))
+    R.LastPushCall(metha, bba, insa, vara) :- groupBy(F.PushCall(metha, bba, insb, vara, __, __), Seq(metha, bba, vara), AggOp.MAX(insb) -> insa)
+    R.LastPushCall(metha, bba, -1, vara) :- (F.StrCall(metha, __, __, vara, __), F.BB(metha, bba), F.Var(metha, vara), !F.PushCall(metha, bba, __, vara, __, __))
 
-    //R.NoDeserSnap(metha, bba, vara) :- (F.FromCall(metha, __, __, __, vara), F.BB(metha, bba), F.Var(metha, vara), !F.PopCall(metha, bba, __, vara, __), !F.FromCall(metha, bba, __, __, vara))
-    R.LaterDeserSnap(metha, bba, insa, insb, vara) :- (F.PopCall(metha, bba, insa, vara, __), F.PopCall(metha, bba, insb, vara, __), insa |<| insb)
-    R.LaterDeserSnap(metha, bba, insa, insb, vara) :- (F.FromCall(metha, bba, insa, __, vara), F.PopCall(metha, bba, insb, vara, __), insa |<| insb)
-    R.NextDeserSnap(metha, bba, insa, insb, vara) :- (F.PopCall(metha, bba, insb, vara, __), groupBy(R.LaterDeserSnap(metha, bba, insc, insb, vara), Seq(metha, bba, insb, vara), AggOp.MAX(insc) -> insa))
-    R.FirstDeserSnap(metha, bba, insa, vara) :- groupBy(F.PopCall(metha, bba, insb, vara, __), Seq(metha, bba, vara), AggOp.MIN(insb) -> insa)
-    R.FirstDeserSnap(metha, bba, -1, vara) :- (F.FromCall(metha, __, __, __, vara), F.BB(metha, bba), F.Var(metha, vara), !F.PopCall(metha, bba, __, vara, __))
+    R.LastPopCall(metha, bba, insa, vara) :- groupBy(F.PopCall(metha, bba, insb, vara, __), Seq(metha, bba, vara), AggOp.MAX(insb) -> insa)
+    R.LaterPopCall(metha, bba, insa, insb, vara) :- (F.PopCall(metha, bba, insa, vara, __), F.PopCall(metha, bba, insb, vara, __), insa |<| insb)
+    R.NextPopCall(metha, bba, insa, insb, vara) :- (F.PopCall(metha, bba, insb, vara, __), groupBy(R.LaterPopCall(metha, bba, insc, insb, vara), Seq(metha, bba, insb, vara), AggOp.MAX(insc) -> insa))
+    R.NextPopCall(metha, bba, insa, -1, vara) :- (R.LastPopCall(metha, bba, insa, vara))
+    R.FirstPopCall(metha, bba, insa, vara) :- groupBy(F.PopCall(metha, bba, insb, vara, __), Seq(metha, bba, vara), AggOp.MIN(insb) -> insa)
+    R.FirstPopCall(metha, bba, -1, vara) :- (F.FromCall(metha, __, __, __, vara), F.BB(metha, bba), F.Var(metha, vara), !F.PopCall(metha, bba, __, vara, __))
 
     R.CaseClassFields(cc, i) :- groupBy(F.CaseClassField(cc, j, __), Seq(cc), AggOp.MAX(j) -> i)
 
@@ -84,14 +84,16 @@ object Inv extends RuleSet:
 
     R.StrEq(metha, bba, insa, vara, methb, bbb, insb, varb) :- (
       R.Eq(varc, vard),
-      F.StrCall(metha, bba, insa, vara, varc),
-      F.FromCall(methb, bbb, insb, vard, varb)
+      F.StrCall(metha, bba, __, vara, varc),
+      R.LastPushCall(metha, bba, insa, vara),
+      F.FromCall(methb, bbb, __, vard, varb),
+      R.FirstPopCall(methb, bbb, insb, varb)
     )
 
     R.StrEq(metha, bba, insa, vara, methb, bbb, insb, varb) :- (
       R.StrEq(metha, bba, insc, vara, methb, bbb, insd, varb),
-      R.NextSerSnap(metha, bba, insa, insc, vara),
-      R.NextDeserSnap(methb, bbb, insd, insb, varb)
+      R.NextPushCall(metha, bba, insa, insc, vara),
+      R.NextPopCall(methb, bbb, insd, insb, varb)
     )
 
     R.Eq(vara, varb) :- (
@@ -100,48 +102,19 @@ object Inv extends RuleSet:
       F.PopCall(methb, bbb, insb, vard, varb)
     )
 
-    // Test
-
-    R.StrEq(metha, bba, -1, vara, methb, bbb, insb, varb) :- (
-      R.StrEq(metha, bba, insc, vara, methb, bbb, insd, varb),
-      !R.NextSerSnap(metha, bba, __, insc, vara),
-      R.NextDeserSnap(methb, bbb, insd, insb, varb)
-    )
-
-    R.StrEq(metha, bba, insa, vara, methb, bbb, -1, varb) :- (
-      R.StrEq(metha, bba, insc, vara, methb, bbb, insd, varb),
-      R.NextSerSnap(metha, bba, insa, insc, vara),
-      !R.NextDeserSnap(methb, bbb, insd, __, varb)
-    )
-    
-    R.StrEq(metha, bba, -1, vara, methb, bbb, -1, varb) :- (
-      R.StrEq(metha, bba, insc, vara, methb, bbb, insd, varb),
-      !R.NextSerSnap(metha, bba, __, insc, vara),
-      !R.NextDeserSnap(methb, bbb, insd, __, varb)
-    )
-
     R.StrEq(metha, bba, insa, vara, methb, bbb, insb, varb) :- (
       R.StrEq(metha, bbc, -1, vara, methb, bbb, insb, varb),
       F.SuccBB(metha, bba, bbc),
-      R.LastSerSnap(metha, bba, insa, vara),
-      insb |!=| -1
+      R.LastPushCall(metha, bba, insa, vara),
+      //insb |!=| -1
     )
 
     R.StrEq(metha, bba, insa, vara, methb, bbb, insb, varb) :- (
       R.StrEq(metha, bba, insa, vara, methb, bbd, -1, varb),
-      F.SuccBB(metha, bbd, bbb),
-      R.FirstDeserSnap(methb, bbb, insb, varb),
-      insa |!=| -1
+      F.SuccBB(methb, bbd, bbb),
+      R.FirstPopCall(methb, bbb, insb, varb),
+      //insa |!=| -1
     )
-
-    R.StrEq(metha, bba, insa, vara, methb, bbb, insb, varb) :- (
-      R.StrEq(metha, bbc, -1, vara, methb, bbd, -1, varb),
-      F.SuccBB(metha, bbd, bbb),
-      R.FirstDeserSnap(methb, bbb, insb, varb),
-      F.SuccBB(metha, bba, bbc),
-      R.LastSerSnap(metha, bba, insa, vara)
-    )
-
 
     // ---
     

@@ -69,7 +69,7 @@ def simple(program: Program): Unit = {
 
   // ---
   
-  val tmp = simple.get{facts.experimental.Defs.PhiCall}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
+  val tmp = simple.get{facts.experimental.Defs.SuccBB}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
   tmp.foreach(x => println(x.mkString(", ")))
   println("-----")
 
@@ -96,13 +96,11 @@ def simple(program: Program): Unit = {
   //val streq = simple.get{rules.experimental.Inv.Eq}
   //streq("simple.simple$package$.main.m", "simple.simple$package$.main.m") :- ()
 
-  /*
-  val tmp21 = simple.get{rules.experimental.Inv.NextPushCall}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
+  val tmp21 = simple.get{rules.experimental.Inv.PhiEq}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
   tmp21.foreach(x => println(x.mkString(", ")))
   println("-----")
-  */
 
-  val tmp22 = simple.get{rules.experimental.Inv.PhiArgs}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
+  val tmp22 = simple.get{rules.experimental.Inv.StrEq}.solve().toList.asInstanceOf[List[Seq[Constant]]].sorted
   tmp22.foreach(x => println(x.mkString(", ")))
   println("-----")
 
