@@ -1,21 +1,9 @@
 
 package simple
 
-import java.nio.ByteBuffer
-
-//class SimpleString(var theString: String):
-//  def +=(string: String): Unit =
-//    theString = theString + string
-//  def =-(sep: String): String =
-//    val idx = theString.lastIndexOf(sep)
-//    val res = theString.substring(idx + sep.length())
-//    theString = theString.substring(0, idx)
-//    res
-
-// ---
-
 class Skip extends scala.annotation.StaticAnnotation
 class Shallow extends scala.annotation.StaticAnnotation
+
 
 class StringManipulator:
   var inner: String = ""
@@ -91,6 +79,7 @@ def trivialDeserializer2(str: String): Int = trivialDeserializer(str)
 def semitrivialSerializer(li: List[Int]): String = serializeList[Int](li)(using serializeInt)
 def semitrivialDeserializer(str: String): List[Int] = deserializeList[Int](str)(using deserializeInt)
 
+
 case class CaseClass(i: Int, d: Double, s: String)
 
 def ccSerializer(cc: CaseClass): String =
@@ -123,6 +112,7 @@ def cccDeserializer(str: String): CompCaseClass =
   val cc2 = ccDeserializer(sm.pop())
   val cc1 = ccDeserializer(sm.pop())
   new CompCaseClass(cc1, cc2)
+
 
 sealed trait Either
 case class Left(x: Int) extends Either
@@ -161,68 +151,59 @@ def eDeserializer(str: String): Either =
 
 sealed trait JsonValue
 
-case class JsonNull(_filler: Int) extends JsonValue
-
+case class JsonNull(_ignore: Int) extends JsonValue
 case class JsonBoolean(value: Boolean) extends JsonValue
-
 case class JsonNumber(value: Double) extends JsonValue
-
 case class JsonString(value: String) extends JsonValue
-
 case class JsonArray(values: List[JsonValue]) extends JsonValue
-
 case class JsonObject(keys: List[String], values: List[JsonValue]) extends JsonValue
 
 def serializeJsonValue(ser: JsonValue): String =
   val sm = StringManipulator.empty
   ser match
     case jn: JsonNull =>
-      sm.push(serializeInt(jn._filler))
-      sm.push("JN")
+      sm.push(serializeInt(jn._ignore))
+      sm.push("null")
     case jb: JsonBoolean =>
       sm.push(serializeBoolean(jb.value))
-      sm.push("JB")
-    case jn2: JsonNumber =>
-      sm.push(serializeDouble(jn2.value))
-      sm.push("JN2")
+      sm.push("boolean")
+    case jn: JsonNumber =>
+      sm.push(serializeDouble(jn.value))
+      sm.push("number")
     case js: JsonString =>
       sm.push(serializeString(js.value))
-      sm.push("JS")
+      sm.push("string")
     case ja: JsonArray =>
-      val a = ja.values
-      sm.push(serializeList[JsonValue](a)(using serializeJsonValue))
-      sm.push("JA")
+      sm.push(serializeList[JsonValue](ja.values)(using serializeJsonValue))
+      sm.push("array")
     case jo: JsonObject =>
-      val k = jo.keys
-      sm.push(serializeList[String](k)(using serializeString))
-      val v = jo.values
-      sm.push(serializeList[JsonValue](v)(using serializeJsonValue))
-      sm.push("JO")
+      sm.push(serializeList[String](jo.keys)(using serializeString))
+      sm.push(serializeList[JsonValue](jo.values)(using serializeJsonValue))
+      sm.push("object")
   sm.string()
 
 def deserializeJsonValue(deser: String): JsonValue =
   val sm = StringManipulator.from(deser)
-  val x = sm.pop()
-  x match
-    case "JN" =>
-      val z = new JsonNull(deserializeInt(sm.pop()))
-      z
-    case "JB" =>
+  val k = sm.pop()
+  k match
+    case "null" =>
+      new JsonNull(deserializeInt(sm.pop()))
+    case "boolean" =>
       new JsonBoolean(deserializeBoolean(sm.pop()))
-    case "JN2" =>
+    case "number" =>
       new JsonNumber(deserializeDouble(sm.pop()))
-    case "JS" =>
+    case "string" =>
       new JsonString(deserializeString(sm.pop()))
-    case "JA" =>
-      val a = deserializeList[JsonValue](sm.pop())(using deserializeJsonValue)
-      new JsonArray(a)
-    case "JO" =>
+    case "array" =>
+      new JsonArray(deserializeList[JsonValue](sm.pop())(using deserializeJsonValue))
+    case "object" =>
       val values = deserializeList[JsonValue](sm.pop())(using deserializeJsonValue)
       val keys = deserializeList[String](sm.pop())(using deserializeString)
       new JsonObject(keys, values)
 
 // ---
 
+/*
 sealed trait RecADT
 
 case class Leaf(_filler: Int) extends RecADT
@@ -253,38 +234,47 @@ def raDeserializer(str: String): RecADT =
       val a = raDeserializer(sm.pop())
       new Node(a, b)
 
+
+sealed trait AList[A]
+case class Nil[A](_filler: Int) extends AList[A]
+case class Cons[A](h: A, t: AList[A]) extends AList[A]
+
+def alistSerializer[A](l: AList[A])(using ser: A => String): String =
+  val sm = StringManipulator.empty
+  l match
+    case n: Nil[A] =>
+      sm.push(serializeInt(n._filler))
+      sm.push("N")
+    case c: Cons[A] =>
+      sm.push(ser(c.h))
+      sm.push(alistSerializer(c.t))
+      sm.push("C")
+  sm.string()
+  
+def alistDeserializer[A](str: String)(using deser: String => A): AList[A] =
+  val sm = StringManipulator.from(str)
+  val x = sm.pop()
+  x match
+    case "N" =>
+      val i = deserializeInt(sm.pop())
+      new Nil[A](i)
+    case "C" =>
+      val t = alistDeserializer(sm.pop())
+      val h = deser(sm.pop())
+      new Cons[A](h, t)
+*/
+
 // ---
 
 object Main:
   def main(args: Array[String]): Unit =
 
     val i = JsonObject(List("peter"), List(JsonArray(List(JsonNull(0), JsonBoolean(true), JsonNumber(12.0), JsonString("str")))))
+    println("INPUT:")
     println(i)
     val m = serializeJsonValue(i)
+    println("SERIALIZED OBJECT: ")
     println(m)
     val o = deserializeJsonValue(m)
+    println("OUTPUT:")
     println(o)
-
-
-    //val i = 0
-    //println(i)
-    //val m = trivialSerializer2(i)
-    //println(m)
-    //val o = trivialDeserializer2(m)
-    //println(o)
-    
-    //val ii = new CaseClass(0, 0.0, "str")
-    //val i = new CompCaseClass(ii, ii)
-    //println(i)
-    //val m = cccSerializer(i)
-    //println(m)
-    //val o = cccDeserializer(m)
-    //println(o)
-
-    //val i = new Right("hello")
-    //println(i)
-    //val m = eSerializer(i)
-    //println(m)
-    //val o = eDeserializer(m)
-    //println(o)
-  

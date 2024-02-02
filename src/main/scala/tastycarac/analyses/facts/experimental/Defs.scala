@@ -208,7 +208,7 @@ object Defs extends FactSet:
         else to match
           case None => (bb, ST.valId(symbol))
           case Some(value) =>
-            F.Move(dc.getMeth, bb, newInstr(bb), value, ST.valId(symbol))
+            F.Move(dc.getMeth, bb, newInstr(bb), ST.valId(symbol), value)
             (bb, value)
       // Select, usually field selection but also call of parameterless method
       case s @ Select(base, name) =>
